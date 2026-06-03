@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Volt Editor</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html,
+body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:rgb(0,0,0);
+    font-family:Inter,Segoe UI,sans-serif;
+}
+
+#container{
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    background:rgb(0,0,0);
+}
+
+#tabs{
+    height:40px;
+    min-height:40px;
+    background:rgb(0,0,0);
+    border-bottom:1px solid rgb(18,18,18);
+    display:flex;
+    align-items:center;
+    padding:0 8px;
+    gap:6px;
+}
+
+#tabContainer{
+    display:flex;
+    gap:6px;
+}
+
+.tab{
+    height:28px;
+    min-width:130px;
+    max-width:180px;
+    background:rgb(10,10,10);
+    border:1px solid transparent;
+    border-radius:8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 10px;
+    color:rgb(170,170,170);
+    cursor:pointer;
+    user-select:none;
+    transition:.15s;
+}
+
+.tab:hover{
+    background:rgb(15,15,15);
+}
+
+.tab.active{
+    background:rgb(20,20,20);
+    border-color:rgb(35,35,35);
+    color:white;
+}
+
+.tab-name{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+.close{
+    margin-left:10px;
+    font-size:15px;
+    opacity:.6;
+}
+
+.close:hover{
+    opacity:1;
+}
+
+#newTab{
+    width:28px;
+    height:28px;
+    border:none;
+    border-radius:8px;
+    background:rgb(10,10,10);
+    color:white;
+    cursor:pointer;
+    transition:.15s;
+}
+
+#newTab:hover{
+    background:rgb(18,18,18);
+}
+
+#editor{
+    flex:1;
+    width:100%;
+}
+</style>
+</head>
+<body>
+
+<div id="container">
+
+    <div id="tabs">
+        <div id="tabContainer"></div>
+        <button id="newTab">+</button>
+    </div>
+
+    <div id="editor"></div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+
+<script>
+
+require.config({
+    paths:{
+        vs:'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs'
+    }
+});
+
+require(['vs/editor/editor.main'],function(){
+
+    monaco.languages.register({
+        id:'luau'
+    });
+
+    monaco.languages.setMonarchTokensProvider('luau',{
+        tokenizer:{
+            root:[
+                [/\b(local|function|end|if|then|elseif|else|for|while|repeat|until|return|break|continue|do|in|and|or|not)\b/,'keyword'],
+                [/\b(game|workspace|script|Instance|Vector3|Color3|UDim2|Enum)\b/,'type'],
+                [/".*?"/,'string'],
+                [/'.*?'/,'string'],
+                [/\d+/,'number'],
+                [/--.*/,'comment']
+            ]
+        }
+    });
+
+    monaco.editor.defineTheme('voltblack',{
+        base:'vs-dark',
+        inherit:true,
+        rules:[
+            {token:'keyword',foreground:'7AA2FF'},
+            {token:'string',foreground:'9ECE6A'},
+            {token:'number',foreground:'FFB86C'},
+            {token:'comment',foreground:'5C6370'},
+            {token:'type',foreground:'7DCFFF'}
+        ],
+        colors:{
+            'editor.background':'#000000',
+            'editor.lineHighlightBackground':'#000000',
+            'editor.selectionBackground':'#1A1A1A',
+            'editorCursor.foreground':'#FFFFFF',
+            'editorIndentGuide.background':'#101010',
+            'editorIndentGuide.activeBackground':'#202020'
+        }
+    });
+
+    const tabs=[];
+    let activeTab=null;
+    let tabCount=1;
+
+    const editor=monaco.editor.create(
+        document.getElementById('editor'),
+        {
+            model:null,
+            theme:'voltblack',
+            language:'luau',
+            automaticLayout:true,
+            minimap:{
+                enabled:true
+            },
+            smoothScrolling:true,
+            cursorSmoothCaretAnimation:'on',
+            cursorBlinking:'smooth',
+            fontSize:15,
+            fontFamily:'JetBrains Mono',
+            renderLineHighlight:'none',
+            scrollBeyondLastLine:false,
+            roundedSelection:true,
+            padding:{
+                top:14
+            },
+            scrollbar:{
+                verticalScrollbarSize:8,
+                horizontalScrollbarSize:8
+            }
+        }
+    );
+
+    function createTab(name){
+
+        const model=monaco.editor.createModel(
+`print("Volt Editor")
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+`,
+            'luau'
+        );
+
+        const tab={
+            name:name,
+            model:model
+        };
+
+        tabs.push(tab);
+        switchTab(tab);
+    }
+
+    function switchTab(tab){
+
+        activeTab=tab;
+        editor.setModel(tab.model);
+
+        document.querySelectorAll('.tab').forEach(x=>{
+            x.classList.remove('active');
+        });
+
+        renderTabs();
+    }
+
+    function closeTab(tab){
+
+        if(tabs.length <= 1)
+            return;
+
+        const index=tabs.indexOf(tab);
+
+        tab.model.dispose();
+        tabs.splice(index,1);
+
+        if(activeTab===tab){
+            activeTab=tabs[Math.max(0,index-1)];
+            editor.setModel(activeTab.model);
+        }
+
+        renderTabs();
+    }
+
+    function renderTabs(){
+
+        const container=document.getElementById('tabContainer');
+        container.innerHTML='';
+
+        tabs.forEach(tab=>{
+
+            const element=document.createElement('div');
+
+            element.className=
+                tab===activeTab
+                ? 'tab active'
+                : 'tab';
+
+            element.innerHTML=
+            `
+            <span class="tab-name">${tab.name}</span>
+            <span class="close">×</span>
+            `;
+
+            element.onclick=()=>{
+                switchTab(tab);
+            };
+
+            element
+            .querySelector('.close')
+            .onclick=(e)=>{
+
+                e.stopPropagation();
+                closeTab(tab);
+            };
+
+            container.appendChild(element);
+        });
+    }
+
+    document
+    .getElementById('newTab')
+    .onclick=()=>{
+
+        tabCount++;
+
+        createTab(
+            'Script ' + tabCount
+        );
+    };
+
+    createTab('Script 1');
+
+});
+</script>
+
+</body>
+</html>
